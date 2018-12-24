@@ -1,3 +1,18 @@
+# -*- coding: utf-8 -*-
+"""
+    Classifier module
+    -----------------
+
+    -Model management
+    -Scaling
+    -Persistence
+    -Training
+    -Testing
+
+    :copyright: (c) 2018 by Aleksej Kusnezov
+    :license: BSD, see LICENSE for more details.
+"""
+
 import os, sys
 import cv2
 import numpy as np
