@@ -1,7 +1,15 @@
+# -*- coding: utf-8 -*-
+"""
+    Feature extraction
+    -----------------
+
+    TODO: describe
+
+    :copyright: (c) 2018 by Aleksej Kusnezov
+    :license: BSD, see LICENSE for more details.
+"""
 import numpy as np
 import cv2
-
-
 
 class FeatEx:
 
