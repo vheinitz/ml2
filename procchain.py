@@ -1,3 +1,13 @@
+# -*- coding: utf-8 -*-
+"""
+    Processing chain
+    -----------------
+
+    TODO: describe
+
+    :copyright: (c) 2018 by Aleksej Kusnezov
+    :license: BSD, see LICENSE for more details.
+"""
 import numpy as np
 import cv2
 import os
@@ -12,6 +22,7 @@ class ProcChain:
         self.debug = False
         self.debugData = []
         self.ctx = {}
+        self.debugView=None
 
     def context(self):
         return self.ctx
@@ -34,24 +45,37 @@ class ProcChain:
                 stepDbg = s.debugData(step) #
                 if stepDbg:
                     for e in stepDbg:
-                        self.debugData.append((e[0], s.ctx[e[1]]))
+                        self.debugData.append((e[0], self.ctx[e[1]]))
                 else:
                     caption = "%s:%d" %(s.sname(),step)
                     self.debugData.append( (caption,tmp) )
 
-                n = int(math.sqrt( len(self.debugData) ) + 1)
+                n = int( len(self.debugData) )
+                self.debugView = np.zeros(( 100, n *100, 3), np.uint8)
                 for i in xrange(len(self.debugData)):
-                    plt.subplot(n, n, i + 1), plt.imshow(self.debugData[i][1], 'gray')
-                    plt.title(self.debugData[i][0])
-                    plt.xticks([]), plt.yticks([])
+                    dtmp = self.debugData[i][1]
+                    origshape = dtmp.shape
+                    w = 100 if dtmp.shape[0] > 100 else dtmp.shape[0]
+                    h = 100 if dtmp.shape[1] > 100 else dtmp.shape[0]
+                    dtmp = cv2.resize( dtmp,( w,h))
+                    if len(dtmp.shape) < 3:
+                        dtmp = cv2.normalize(dtmp, None, alpha=0, beta=255, norm_type=cv2.NORM_MINMAX, dtype=cv2.CV_32F)
+                        dtmp = cv2.cvtColor(dtmp, cv2.COLOR_GRAY2RGB)
+
+                    self.debugView[0:h,(i*100):(i*100+w)] =  dtmp #
+                    frame = self.debugView[0:100,(i*100):(i*100+100)]
+                    cv2.rectangle(frame, (0, 0), (100, 100), (0, 255, 0), 1)
+                    cv2.putText(frame, self.debugData[i][0] , (0,100-20 ),0, 0.4, (0,255,0))
+                    cv2.putText(frame, "%d:%d" % (origshape[0], origshape[1]), (0, 100 - 10), 0, 0.4, (0, 255, 0))
+
 
             step += 1
 
         if self.debug and plt:
-            plt.show()
+            cv2.imshow("Process chain", self.debugView)
+            self.debugData = []
 
         return tmp
-
 
 
 class ImgProcStep:
@@ -65,6 +89,7 @@ class ImgProcStep:
 
     def debugData(self, num):
         return None
+
 
 class ImgProcToGray(ImgProcStep):
 
@@ -113,7 +138,7 @@ class ImgProcSplit(ImgProcStep):
         self.b = b
 
     def process(self, img, ctx):
-        self.ctx[self.b], self.ctx[self.g] ,self.ctx[self.r] = cv2.split(img)
+        ctx[self.b], ctx[self.g] , ctx[self.r] = cv2.split(img)
         return img
 
     def sname(self):
@@ -121,6 +146,7 @@ class ImgProcSplit(ImgProcStep):
 
     def debugData(self, n):
         return [("%s R:%d" % (self.sname(),n),self.r),("%s G:%d" % (self.sname(),n),self.g),("%s B:%d" % (self.sname(),n),self.b)]
+
 
 class ImgProcRoi(ImgProcStep):
     def __init__(self, x1,x2,y1,y2):
@@ -135,6 +161,7 @@ class ImgProcRoi(ImgProcStep):
     def sname(self):
         return 'ROI'
 
+
 class ImgProcChRed(ImgProcStep):
     def __init__(self):
         pass
@@ -145,6 +172,7 @@ class ImgProcChRed(ImgProcStep):
     def sname(self):
         return 'Red'
 
+
 class ImgProcChGreen(ImgProcStep):
     def __init__(self):
         pass
@@ -154,6 +182,7 @@ class ImgProcChGreen(ImgProcStep):
 
     def sname(self):
         return 'Green'
+
 
 class ImgProcChBlue(ImgProcStep):
     def __init__(self):
@@ -168,12 +197,11 @@ class ImgProcChBlue(ImgProcStep):
 
 class ImgProcUse(ImgProcStep):
 
-    def __init__(self, ctx, name):
+    def __init__(self, name):
         self.name=name
-        self.ctx = ctx
 
     def process(self, img, ctx):
-        return self.ctx[self.name]
+        return ctx[self.name]
 
     def sname(self):
         return 'Use'
@@ -191,6 +219,7 @@ class ImgProcStore(ImgProcStep):
     def sname(self):
         return 'Store'
 
+
 class ImgProcTh(ImgProcStep):
 
     def __init__(self, th):
@@ -207,6 +236,7 @@ class ImgProcThInv(ImgProcStep):
 
     def process(self, img, ctx):
         return cv2.threshold(img, self.th,255,cv2.THRESH_BINARY_INV)[1]
+
 
 class ImgProcThOtsu(ImgProcStep):
     def __init__(self):
@@ -228,6 +258,8 @@ class ImgProcThAdpt(ImgProcStep):
 
     def sname(self):
         return 'ThAdpt'
+
+
 class ImgProcResize(ImgProcStep):
 
     def __init__(self,w,h):
@@ -241,6 +273,7 @@ class ImgProcResize(ImgProcStep):
     def sname(self):
         return 'Resize'
 
+
 class ImgProcNorm(ImgProcStep):
 
     def __init__(self):
@@ -252,6 +285,7 @@ class ImgProcNorm(ImgProcStep):
 
     def sname(self):
         return 'Norm'
+
 
 class ImgProcBin(ImgProcStep):
 
@@ -266,6 +300,7 @@ class ImgProcBin(ImgProcStep):
     def sname(self):
         return 'Bin'
 
+
 class ImgProcPyrDn(ImgProcStep):
 
     def __init__(self):
@@ -277,6 +312,7 @@ class ImgProcPyrDn(ImgProcStep):
 
     def sname(self):
         return 'PyrDn'
+
 
 class ImgProcBilFilter(ImgProcStep):
     def __init__(self):
