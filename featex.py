@@ -1,15 +1,8 @@
-# -*- coding: utf-8 -*-
-"""
-    Feature extraction
-    -----------------
 
-    TODO: describe
-
-    :copyright: (c) 2018 by Aleksej Kusnezov
-    :license: BSD, see LICENSE for more details.
-"""
 import numpy as np
 import cv2
+
+
 
 class FeatEx:
 
@@ -29,16 +22,30 @@ class FeatEx:
 
 class Moments():
 
-    def __init__(self):
-        pass
+    def __init__(self, using=None):
+        self.using = using
 
     def process(self, ctx, itemname='result'):
         img = ctx[itemname]
         M = cv2.moments(img, binaryImage=True)
         D = []
         for k, v in M.iteritems():
-            D.append(v)
+            if not self.using or k in self.using:
+                D.append(v)
         return D  #np.asarray(D)
+
+
+class HuMoments():
+
+    def __init__(self, using=None):
+        self.using = using
+
+    def process(self, ctx, itemname='result'):
+        img = ctx[itemname]
+        M = cv2.moments(img, binaryImage=True)
+        HM = cv2.HuMoments(M)
+        D = HM.tolist()
+        return D[0]
 
 class Pixels():
 
@@ -47,49 +54,23 @@ class Pixels():
 
     def process(self, ctx, itemname='result'):
         img = ctx[itemname]
-        M = np.reshape(img,(1,32*32))
+        tmp = cv2.normalize(img, None, alpha=0, beta=1, norm_type=cv2.NORM_MINMAX, dtype=cv2.CV_32F)
+        M = np.reshape(tmp, (1, img.shape[0] * img.shape[1]))
         D = M.tolist()
         return D[0]  #np.asarray(D)
 
-"""
+class Corners():
 
+    def __init__(self):
+        pass
 
-def moments( img, binImg=False ):
-    M = cv2.moments(img, binImg)
-    D = []
-    for k,v in M.iteritems():
-        D.append(v)
-    return np.asarray(D)
+    def process(self, ctx, itemname='result'):
+        img = ctx[itemname]
+        fimg = np.float32(img)
+        dst = cv2.cornerHarris(fimg, 2, 5, 0.1)
+        #cv2.imshow("corners", dst)
+        #cv2.waitKey(0)
+        M = np.reshape(dst, (1, img.shape[0] * img.shape[1]))
+        D = M.tolist()
+        return D[0]  #np.asarray(D)
 
-def huMoments( img, binImg=False ):
-    M = cv2.HuMoments(img, binImg)
-    D = []
-    for k,v in M.iteritems():
-        D.append(v)
-    return np.asarray(D)
-
-def hog( img ):
-    cell_size = (4, 4)  # h x w in pixels
-    block_size = (2, 2)  # h x w in cells
-    nbins = 1  # number of orientation bins
-
-    # winSize is the size of the image cropped to an multiple of the cell size
-    hog = cv2.HOGDescriptor(_winSize=(img.shape[1] // cell_size[1] * cell_size[1],
-                                      img.shape[0] // cell_size[0] * cell_size[0]),
-                            _blockSize=(block_size[1] * cell_size[1],
-                                        block_size[0] * cell_size[0]),
-                            _blockStride=(cell_size[1], cell_size[0]),
-                            _cellSize=(cell_size[1], cell_size[0]),
-                            _nbins=nbins)
-    h = hog.compute(img)
-    return h
-
-
-def corners( img ):
-    fimg = np.float32(img)
-    dst = cv2.cornerHarris(fimg, 2, 3, 0.04)
-    #cv2.imshow("corners", dst)
-    #cv2.waitKey(0)
-    return fimg
-
-"""
