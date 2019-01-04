@@ -35,44 +35,55 @@ class ProcChain:
 
     def process(self, img):
         step = 1
+        self.debugData = []
         tmp = copy.deepcopy(img)
         if self.debug:
-            self.debugData.append(("START", tmp))
+            if len(self.debugData) == 0:
+                self.debugData.append(("START", tmp))
+            else:
+                self.debugData[0][1] = tmp
+
 
         for s in self.chain:
             tmp = s.process(tmp, self.ctx )
             if self.debug:
-                stepDbg = s.debugData(step) #
-                if stepDbg:
-                    for e in stepDbg:
-                        self.debugData.append((e[0], self.ctx[e[1]]))
-                else:
-                    caption = "%s:%d" %(s.sname(),step)
-                    self.debugData.append( (caption,tmp) )
+                try:
+                    stepDbg = s.debugData(step) #
+                    if stepDbg:
+                        for e in stepDbg:
+                            if len(self.debugData) <= step:
+                                self.debugData.append((e[0], self.ctx[e[1]]))
+                            else:
+                                self.debugData[0][1] = self.ctx[e[1]]
 
-                n = int( len(self.debugData) )
-                self.debugView = np.zeros(( 100, n *100, 3), np.uint8)
-                for i in xrange(len(self.debugData)):
-                    dtmp = self.debugData[i][1]
-                    origshape = dtmp.shape
-                    w = 100 if dtmp.shape[0] > 100 else dtmp.shape[0]
-                    h = 100 if dtmp.shape[1] > 100 else dtmp.shape[0]
-                    dtmp = cv2.resize( dtmp,( w,h))
-                    if len(dtmp.shape) < 3:
-                        dtmp = cv2.normalize(dtmp, None, alpha=0, beta=255, norm_type=cv2.NORM_MINMAX, dtype=cv2.CV_32F)
-                        dtmp = cv2.cvtColor(dtmp, cv2.COLOR_GRAY2RGB)
+                    else:
+                        caption = "%s:%d" %(s.sname(),step)
+                        self.debugData.append( (caption,tmp) )
 
-                    self.debugView[0:h,(i*100):(i*100+w)] =  dtmp #
-                    frame = self.debugView[0:100,(i*100):(i*100+100)]
-                    cv2.rectangle(frame, (0, 0), (100, 100), (0, 255, 0), 1)
-                    cv2.putText(frame, self.debugData[i][0] , (0,100-20 ),0, 0.4, (0,255,0))
-                    cv2.putText(frame, "%d:%d" % (origshape[0], origshape[1]), (0, 100 - 10), 0, 0.4, (0, 255, 0))
+                    n = int( len(self.debugData) )
+                    self.debugView = np.zeros(( 100, n *100, 3), np.uint8)
+                    for i in xrange(len(self.debugData)):
+                        dtmp = self.debugData[i][1]
+                        origshape = dtmp.shape
+                        w = 100 if dtmp.shape[0] > 100 else dtmp.shape[0]
+                        h = 100 if dtmp.shape[1] > 100 else dtmp.shape[0]
+                        dtmp = cv2.resize( dtmp,( w,h))
+                        if len(dtmp.shape) < 3:
+                            dtmp = cv2.normalize(dtmp, None, alpha=0, beta=255, norm_type=cv2.NORM_MINMAX, dtype=cv2.CV_32F)
+                            dtmp = cv2.cvtColor(dtmp, cv2.COLOR_GRAY2RGB)
 
-
+                        self.debugView[0:h,(i*100):(i*100+w)] =  dtmp #
+                        frame = self.debugView[0:100,(i*100):(i*100+100)]
+                        cv2.rectangle(frame, (0, 0), (100, 100), (0, 255, 0), 1)
+                        cv2.putText(frame, self.debugData[i][0] , (0,100-20 ),0, 0.4, (0,255,0))
+                        cv2.putText(frame, "%d:%d" % (origshape[0], origshape[1]), (0, 100 - 10), 0, 0.4, (0, 255, 0))
+                except Exception, ex:
+                    pass
             step += 1
 
         if self.debug and plt:
             cv2.imshow("Process chain", self.debugView)
+            cv2.waitKey(10)
             self.debugData = []
 
         return tmp
@@ -161,6 +172,18 @@ class ImgProcRoi(ImgProcStep):
     def sname(self):
         return 'ROI'
 
+class ImgProcRoiByName(ImgProcStep):
+    def __init__(self, roiname):
+        self.roiname = roiname
+
+
+    def process(self, img, ctx):
+        x,y,w,h,= ctx[self.roiname]
+        return img[y:y+h, x:x+w]
+
+    def sname(self):
+        return 'ROI'
+
 
 class ImgProcChRed(ImgProcStep):
     def __init__(self):
@@ -171,6 +194,58 @@ class ImgProcChRed(ImgProcStep):
 
     def sname(self):
         return 'Red'
+
+class ImgProcCanny(ImgProcStep):
+    def __init__(self):
+        pass
+
+    def process(self, img, ctx):
+        return  cv2.Canny(img,30,250)
+
+    def sname(self):
+        return 'Canny'
+
+class ImgProcObjRoi(ImgProcStep):
+    def __init__(self, roiname=None):
+        self.roiname=roiname
+        pass
+
+    def process(self, img, ctx):
+        sh = img.shape
+        x=0
+        y=0
+        w=sh[1]
+        h=sh[0]  # ???
+        img = cv2.blur(img, (5,5))
+        img =  cv2.adaptiveThreshold(img,255,cv2.ADAPTIVE_THRESH_GAUSSIAN_C,cv2.THRESH_BINARY,11,2)
+        im2, contours, hierarchy = cv2.findContours(img, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
+        cv2.drawContours(img, contours, -1, (0), 10)
+        im2, contours, hierarchy = cv2.findContours(img, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
+        cv2.drawContours(img, contours, -1, (0), 1)
+        cntsSorted = sorted(contours, key=lambda x: cv2.contourArea(x))
+        try:
+            c = cntsSorted[-2]
+            x, y, w, h = cv2.boundingRect(c)
+
+        except:
+            pass
+
+        if w < sh[0] / 10 or h < sh[1] / 10:  # Object too small
+            x = 0
+            y = 0
+            w = sh[1]
+            h = sh[0]  # ???
+
+        if self.roiname:
+            ctx[self.roiname] = (x, y, w, h)
+
+        return img[y:y+h, x:x+w]
+        # draw the book contour (in green)
+        #cv2.rectangle(img, (x, y), (x + w, y + h), ( 50), -1)
+        #return img
+
+    def sname(self):
+        return 'Cont'
 
 
 class ImgProcChGreen(ImgProcStep):
@@ -219,6 +294,18 @@ class ImgProcStore(ImgProcStep):
     def sname(self):
         return 'Store'
 
+class ImgProcSub(ImgProcStep):
+
+    def __init__(self, name):
+        self.name = name
+
+    def process(self, img, ctx):
+        tmp = ctx[self.name]
+        sub = cv2.Sub( img, tmp )
+        return sub
+
+    def sname(self):
+        return 'Sub'
 
 class ImgProcTh(ImgProcStep):
 
