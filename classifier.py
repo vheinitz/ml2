@@ -160,10 +160,11 @@ if __name__ == '__main__':
     pc = procchain.ProcChain()
     fe = featex.FeatEx()
 
-    fe.append(featex.Moments())
-    #fe.append(featex.Pixels())
+    #fe.append(featex.Moments())
+    fe.append(featex.Pixels())
 
     pc.append(procchain.ImgProcToGray())
+    pc.append(procchain.ImgProcNorm())
     pc.append(procchain.ImgProcResize(32, 32))
     pc.append(procchain.ImgProcStore("result"))
     pc.debug=True
