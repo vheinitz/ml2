@@ -28,6 +28,7 @@ class Classifier:
         self.clf = None
         self.pc = None
         self.fe = None
+        self.resultmap = {}
 
     def addItem(self, img, classname):
         clpath = os.path.join( self.basedir, classname)
@@ -56,35 +57,82 @@ class Classifier:
         self.basedir = dirname
         return True
 
+    def roi(self, fname='roi.txt'):
+        roifile = os.path.join(self.basedir, fname)
+        try:
+            data = open(roifile, 'r').read().split(" ")
+            return (int(data[0]), int(data[1]), int(data[2]), int(data[3]))
+        except Exception, ex:
+            return (0, 0, 640, 480)
+
+    def set_roi(self, x0, y0, x1, y1, fname='roi.txt'):
+        roifile = os.path.join(self.basedir, fname)
+        try:
+            open(roifile, 'w').write("%d %d %d %d" % (x0, y0, x1, y1) )
+        except Exception, ex:
+            pass
+
     def learn(self, pc, fe):
         self.pc = pc
         self.fe = fe
-        #TODO read if model file younger than images
-        # clf = joblib.load( os.path.join(self.basedir, 'er.model'))
-        tmp = os.listdir(self.basedir)
-        clss = [ c for c in tmp if os.path.isdir(os.path.join(self.basedir, c)) ]
+        modelfile = os.path.join(self.basedir, 'er.model')
+        if False and os.path.exists(modelfile):
+            self.clf = joblib.load( os.path.join(self.basedir, 'er.model'))
+        else:
+            try:
+                tmp = os.listdir(os.path.join(self.basedir, 'train'))
+                clss = [ c for c in tmp if os.path.isdir(os.path.join(self.basedir,'train', c)) ]
 
-        ft=[]
-        cv=[]
-        cid=0
-        for c in clss:
-            cid += 1
-            cd = os.path.join(self.basedir,c)
-            its = os.listdir(cd)
-            for i in its:
-                img = cv2.imread( os.path.join(cd,i) )
-                out = pc.process( img )
-                ft.append(fe.process(pc.context()))
-                cv.append(cid)
-                #cv2.imshow("img_pc", out)
-                #cv2.waitKey(1)
+                ft=[]
+                cv=[]
+                cid=0
+                for c in clss:
+                    cid += 1
+                    self.resultmap[cid] = c
+                    cd = os.path.join(self.basedir,'train', c)
+                    its = os.listdir(cd)
+                    for i in its:
+                        try:
+                            img = cv2.imread( os.path.join(cd,i) )
+                            out = pc.process( img )
+                            ft.append(fe.process(pc.context()))
+                            cv.append(cid)
+                            #cv2.imshow("img_pc", out)
+                            #cv2.waitKey(1)
+                        except Exception, ex:
+                            print ('clsf: %s' % str(ex))
+                            pass
 
-        self.clf = svm.SVC(gamma=0.001, C=100.)
-        self.clf.fit(ft, cv)
+                self.clf = svm.SVC(gamma=0.001, C=100.)
+                self.clf.fit(ft, cv)
 
-        joblib.dump(self.clf, os.path.join(self.basedir, 'er.model'))
+                joblib.dump(self.clf, os.path.join(self.basedir, 'er.model'))
+            except Exception, ex:
+                pass
 
         pass
+
+    def verify(self):
+        try:
+            tmp = os.listdir(os.path.join(self.basedir, 'test'))
+            clss = [c for c in tmp if os.path.isdir(os.path.join(self.basedir, 'test', c))]
+            for c in clss:
+
+                cd = os.path.join(self.basedir, 'test', c)
+                its = os.listdir(cd)
+                for i in its:
+                    try:
+                        img = cv2.imread(os.path.join(cd, i))
+                        out = self.test(img)
+
+                        print "%s: %s - %s; %s" %( str(c == out),c,out,i )
+
+                    except Exception, ex:
+                        print ('clsf: %s' % str(ex))
+                        pass
+        except Exception, ex:
+            pass
+
 
     def test(self, img):
 
@@ -93,7 +141,9 @@ class Classifier:
         ft = np.asarray(fv).reshape(1, -1)
         res = self.clf.predict(ft)
 
-        return res[0]
+        clname = self.resultmap[res[0]]
+
+        return clname
 
 
 
@@ -103,21 +153,9 @@ if __name__ == '__main__':
     import featex
     import datagen
 
-    t = Rafael()
+    t = Classifier()
 
-    ret = t.setBaseDir("c:/tmp/testbase");
-
-
-    if 0:
-
-        for n in xrange(100):
-            img = datagen.createRectImg()
-            t.addItem(img, 'r')
-
-        for n in xrange(100):
-            img = datagen.createEllipseImg()
-            t.addItem(img, 'e')
-
+    ret = t.setBaseDir("c:/tmp/anamit");
 
     pc = procchain.ProcChain()
     fe = featex.FeatEx()
@@ -128,22 +166,11 @@ if __name__ == '__main__':
     pc.append(procchain.ImgProcToGray())
     pc.append(procchain.ImgProcResize(32, 32))
     pc.append(procchain.ImgProcStore("result"))
+    pc.debug=True
 
-    t.read(pc,fe)
+    t.learn(pc,fe)
+    t.verify()
 
-    e=[]
-    r=[]
-    for n in xrange(10):
-        img = datagen.createRectImg()
-        r.append(t.test(img) )
 
-    for n in xrange(10):
-        img = datagen.createEllipseImg()
-        e.append(t.test(img))
-
-    print r
-    print e
-
-    cv2.waitKey(0)
     pass
 

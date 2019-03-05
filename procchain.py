@@ -17,11 +17,12 @@ from matplotlib import pyplot as plt
 
 class ProcChain:
 
-    def __init__(self):
+    def __init__(self, name=''):
         self.chain = []
         self.debug = False
         self.debugData = []
         self.ctx = {}
+        self.name = name
         self.debugView=None
 
     def context(self):
@@ -75,14 +76,14 @@ class ProcChain:
                         self.debugView[0:h,(i*100):(i*100+w)] =  dtmp #
                         frame = self.debugView[0:100,(i*100):(i*100+100)]
                         cv2.rectangle(frame, (0, 0), (100, 100), (0, 255, 0), 1)
-                        cv2.putText(frame, self.debugData[i][0] , (0,100-20 ),0, 0.4, (0,255,0))
-                        cv2.putText(frame, "%d:%d" % (origshape[0], origshape[1]), (0, 100 - 10), 0, 0.4, (0, 255, 0))
+                        cv2.putText(frame, self.debugData[i][0] , (0,100-20 ),0, 0.4, (255,0,0))
+                        cv2.putText(frame, "%d:%d" % (origshape[0], origshape[1]), (0, 100 - 10), 0, 0.4, ( 255, 0, 0))
                 except Exception, ex:
                     pass
             step += 1
 
         if self.debug and plt:
-            cv2.imshow("Process chain", self.debugView)
+            cv2.imshow("Process chain[%s]" % self.name, self.debugView)
             cv2.waitKey(10)
             self.debugData = []
 
@@ -182,7 +183,7 @@ class ImgProcRoiByName(ImgProcStep):
         return img[y:y+h, x:x+w]
 
     def sname(self):
-        return 'ROI'
+        return 'RoiByName'
 
 
 class ImgProcChRed(ImgProcStep):
@@ -222,10 +223,15 @@ class ImgProcObjRoi(ImgProcStep):
         cv2.drawContours(img, contours, -1, (0), 10)
         im2, contours, hierarchy = cv2.findContours(img, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
         cv2.drawContours(img, contours, -1, (0), 1)
-        cntsSorted = sorted(contours, key=lambda x: cv2.contourArea(x))
+        cntsSorted = sorted(contours, key=lambda x: cv2.contourArea(x),reverse=True)
         try:
-            c = cntsSorted[-2]
-            x, y, w, h = cv2.boundingRect(c)
+            if len( cntsSorted ) >= 2:
+                x, y, w, h = cv2.boundingRect(cntsSorted[1])
+            else:
+                x, y, w, h = cv2.boundingRect(cntsSorted[0])
+
+            if x < 10 or y < 10 or w+x > sh[1] - 10 or h+y > sh[0] - 10:
+                x, y, w, h = cv2.boundingRect(cntsSorted[0])
 
         except:
             pass
@@ -240,9 +246,7 @@ class ImgProcObjRoi(ImgProcStep):
             ctx[self.roiname] = (x, y, w, h)
 
         return img[y:y+h, x:x+w]
-        # draw the book contour (in green)
-        #cv2.rectangle(img, (x, y), (x + w, y + h), ( 50), -1)
-        #return img
+
 
     def sname(self):
         return 'Cont'
