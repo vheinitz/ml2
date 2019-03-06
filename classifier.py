@@ -113,10 +113,16 @@ class Classifier:
         pass
 
     def verify(self):
+        res ={}
+        err = {}
         try:
             tmp = os.listdir(os.path.join(self.basedir, 'test'))
             clss = [c for c in tmp if os.path.isdir(os.path.join(self.basedir, 'test', c))]
             for c in clss:
+                if c not in res:
+                    res[c] = 0
+                if c not in err:
+                    err[c] = {}
 
                 cd = os.path.join(self.basedir, 'test', c)
                 its = os.listdir(cd)
@@ -125,13 +131,25 @@ class Classifier:
                         img = cv2.imread(os.path.join(cd, i))
                         out = self.test(img)
 
-                        print "%s: %s - %s; %s" %( str(c == out),c,out,i )
+                        #print "%s: %s - %s; %s" %( str(c == out),c,out,i )
+
+                        if c == out:
+                            res[c] += 1
+                        else:
+                            if out not in err[c]:
+                                err[c][out]=0
+                            err[c][out] += 1
+
+
 
                     except Exception, ex:
                         print ('clsf: %s' % str(ex))
                         pass
+
         except Exception, ex:
             pass
+
+        return res, err
 
 
     def test(self, img):
@@ -167,10 +185,13 @@ if __name__ == '__main__':
     pc.append(procchain.ImgProcNorm())
     pc.append(procchain.ImgProcResize(32, 32))
     pc.append(procchain.ImgProcStore("result"))
-    pc.debug=True
+    #pc.debug=True
 
     t.learn(pc,fe)
-    t.verify()
+    res, err = t.verify()
+
+    for c in res:
+        print "OK %s %d/%d  " %( c, res[c], str(err[c]))
 
 
     pass
