@@ -11,6 +11,8 @@ from matplotlib import pyplot as plt
 basedir = 'C:\\Development\\PR_DATA\\ModelANA\\img\\'
 tmp = os.listdir(basedir)
 
+CellCnt=1
+
 for fn in tmp:
 
     orig = cv2.imread(basedir+fn)
@@ -25,7 +27,8 @@ for fn in tmp:
     img = cv2.pyrUp( img )
 
     gray = cv2.cvtColor(img,cv2.COLOR_BGR2GRAY)
-    ret, thresh = cv2.threshold(gray,0,255,cv2.THRESH_BINARY_INV+cv2.THRESH_OTSU)
+    ret, thresh = cv2.threshold(gray,0,255,cv2.THRESH_BINARY+cv2.THRESH_OTSU)
+
 
     # noise removal
     kernel = np.ones((3,3),np.uint8)
@@ -36,36 +39,73 @@ for fn in tmp:
 
     # Finding sure foreground area
     dist_transform = cv2.distanceTransform(opening,cv2.DIST_L2,5)
-    ret, sure_fg = cv2.threshold(dist_transform,0.7*dist_transform.max(),255,0)
+    ret, sure_fg = cv2.threshold(dist_transform,0.3*dist_transform.max(),255,0)
+    dtm = dist_transform.max()
+    ret, sure_fg = cv2.threshold(dist_transform, 5, 255, 0)
 
     # Finding unknown region
     sure_fg = np.uint8(sure_fg)
-    unknown = cv2.subtract(sure_bg,sure_fg)
+    #unknown = cv2.subtract(sure_bg,sure_fg)
 
     # Marker labelling
-    ret, markers = cv2.connectedComponents(sure_fg)
+    #ret, markers = cv2.connectedComponents(sure_fg)
 
     # Add one to all labels so that sure background is not 0, but 1
-    markers = markers+1
+    #markers = markers+1
 
     # Now, mark the region of unknown with zero
-    markers[unknown==255] = 0
+    #markers[unknown==255] = 0
 
-    markers = cv2.watershed(img,markers)
-    img[markers == -1] = [255,0,0]
+    #markers = cv2.watershed(img,markers)
 
-    cv2.imshow( " out", img )
+    #test = np.zeros(img.shape)
+    #test[markers == -1] = [255,255,255]
+    #img[markers == -1] = [255,0,0]
+
+    dist_transform = np.uint8(dist_transform)
+
+    #image, contours, hierarchy = cv2.findContours(dist_transform, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
+    image, contours, hierarchy = cv2.findContours(sure_fg, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
+
+    for c in contours:
+        al = cv2.arcLength(c,True)
+        if al <=0 :
+            al=1
+        ar = cv2.contourArea(c)
+        cr =  (al/(3.1416*2))
+        apr= ar/al
+        circ = ( apr/cr *2 )
+        print "%d %d %f %d %f" % (al, ar, apr, cr, circ)
+
+        if al < 100 and al > 20 and circ > 0.3:
+            #cv2.drawContours(img, [c], 0, (255,255,0), 2)
+            #M = cv2.moments(c)
+            #print M
+            x, y, w, h = cv2.boundingRect(c)
+            img = cv2.rectangle(img, (x, y), (x + w, y + h), (255, 0, 0), 1)
+            x = (x) *4 -60
+            y = (y) *4 -60
+            w = 120
+            h = 120
+            if x > 60 and y>60 and x< 2490 and y < 1850:
+                #orig = cv2.rectangle(orig, (x, y), (x + w, y + h), (255,0, 0), 1)
+                cell = orig[y:y+120,x:x+120]
+                if cell.shape[0] > 0 and CellCnt < 10000:
+                    cv2.imwrite( "c:/tmp/cells/%d.png" % CellCnt , cell)
+                    CellCnt +=1
 
 
-    arr = np.uint8(dist_transform)
 
-    cv2.imshow( " dist_transform", dist_transform )
-    image, contours, hierarchy = cv2.findContours(arr, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
 
-    image = cv2.drawContours(img, contours, -1, (255, 255, 0), 1)
+
 
     #disconnected = cv2.dilate(dist_transform,kernel,iterations=3)
 
-    cv2.imshow( " image", image )
+    cv2.imshow( " image", img )
+    #cv2.imshow(" test", test)
+    cv2.imshow(" sure_bg", sure_bg)
+    cv2.imshow(" opening", opening)
+    #cv2.imshow(" orig", orig)
 
-    cv2.waitKey(0)
+
+    cv2.waitKey(1)
